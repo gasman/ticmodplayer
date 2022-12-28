@@ -104,7 +104,7 @@ channel_states = {{
 
 t=0
 
-row_duration = 0.02*6*60
+row_duration = 1.2*6
 next_row_time = 0
 row_num = -1
 position_num = 1
@@ -114,8 +114,6 @@ sample_data_start_addr = {sample_data_start_addr}
 
 function TIC()
   if next_row_time <= t then
-    -- advance next_row_time
-    next_row_time = next_row_time + row_duration
     -- read new row
     row_num = row_num + 1
 
@@ -145,8 +143,18 @@ function TIC()
         else
           channel_states[chan][5] = 1
         end
+        if effect == 0x0f then
+          param = peek(cell_addr + 3)
+          if param <= 32 then
+            row_duration = 1.2*param
+          else
+            row_duration = 900/param
+          end
+        end
       end
     end
+    -- advance next_row_time
+    next_row_time = next_row_time + row_duration
   end
 
   for chan=1,4 do
