@@ -15,7 +15,7 @@ pitch_sums_by_sample = defaultdict(lambda:0)
 note_counts_by_sample = defaultdict(lambda:0)
 for pattern in mod.patterns:
     for row in pattern:
-        for (note, sample) in row:
+        for (note, sample, effect, param) in row:
             if note is not None:
                 pitch_sums_by_sample[sample-1] += note
                 note_counts_by_sample[sample-1] += 1
@@ -59,8 +59,8 @@ sample_meta_string = ",\n".join([
 pattern_data_buffer = BytesIO()
 for pattern in mod.patterns:
     for row in pattern:
-        for (note, sample) in row:
-            pattern_data_buffer.write(bytes([255 if note is None else note, sample]))
+        for (note, sample, effect, param) in row:
+            pattern_data_buffer.write(bytes([255 if note is None else note, sample, effect, param]))
 
 pattern_data = pattern_data_buffer.getvalue()
 pattern_data_start_addr = 0x4000
@@ -126,10 +126,10 @@ function TIC()
       pattern_num = positions[position_num]
     end
 
-    pattern_addr = pattern_data_start_addr + pattern_num * 64 * 4 * 2
-    row_addr = pattern_addr + row_num * 4 * 2
+    pattern_addr = pattern_data_start_addr + pattern_num * 64 * 4 * 4
+    row_addr = pattern_addr + row_num * 4 * 4
     for chan=1,4 do
-      cell_addr = row_addr + (chan - 1) * 2
+      cell_addr = row_addr + (chan - 1) * 4
       note_num = peek(cell_addr)
       if note_num ~= 255 then
         sample_num = peek(cell_addr + 1)
@@ -138,7 +138,13 @@ function TIC()
         channel_states[chan][2] = sample_num
         channel_states[chan][3] = sample_meta[2]
         channel_states[chan][4] = note_num - sample_meta[5]
-        channel_states[chan][5] = 1
+        effect = peek(cell_addr + 2)
+        if effect == 0x0c then
+          param = peek(cell_addr + 3)
+          channel_states[chan][5] = param / 64
+        else
+          channel_states[chan][5] = 1
+        end
       end
     end
   end
@@ -169,7 +175,7 @@ function TIC()
       wave_freq=b1|((b2 & 0x0f) << 8)
       freq=((wave_freq*(2^(state[4]/12)))+0.5)//1
       wave_vol=b2>>4
-      vol=wave_vol*state[5]
+      vol=wave_vol*state[5]//1
       poke(chan_addr,freq&0xff)
       poke(chan_addr+1,(freq>>8)|(vol<<4))
       chan_addr = chan_addr + 2

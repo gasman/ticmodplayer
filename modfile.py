@@ -195,26 +195,17 @@ class ModFile:
             if d: print (len(patterns),": offset ",offset)
             for row in range (0,64):
                 row=[]
-                txt=""
-                txt2= ""
                 for channel in range (0,nr_channels):
                     bytes=barr[offset:offset+4]
-                    nibbles=hexs(bytes)
-                    samplenr=int(nibbles[0]+nibbles[4],16)
-                    samplehex=nibbles[0]+nibbles[4]
 
-                    noteperiod=int(nibbles[1:4],16)
+                    samplenr = (bytes[0] & 0xf0) | (bytes[2] >> 4)
+                    noteperiod = ((bytes[0] & 0x0f) << 8) | bytes[1]
+                    effect = bytes[2] & 0x0f
+                    param = bytes[3]
 
-                    effect = nibbles[5:8]
-                    txt2=txt2+"{} -> {} {} {} | ".format(nibbles,noteperiod,samplehex,effect)
                     note=period2notenum(noteperiod)
-                    # seq_text="{:<3} {} {:<3}".format(note,samplehex,effect)
-                    row.append((note, samplenr))
-                    #txt = txt + seq_text+ " "
-                    txt=txt+"|"+nibbles+"|"+str(noteperiod)
+                    row.append((note, samplenr, effect, param))
                     offset=offset+4
-                #print (txt2)
-                if d: print (row,txt)
                 pattern.append(row)
             patterns.append(pattern)
 
