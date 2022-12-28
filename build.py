@@ -56,19 +56,17 @@ sample_meta_string = ",\n".join([
     for s in sample_meta
 ])
 
-pattern_data = "{%s}" % (",\n".join([
-    "{%s}" % (",".join([
-        "{%s}" % (",".join([
-            "{%d,%d}" % (-1 if note is None else note, sample)
-            for (note, sample) in row
-        ]))
-        for row in pattern
-    ]))
-    for pattern in mod.patterns
-]))
+pattern_data_buffer = BytesIO()
+for pattern in mod.patterns:
+    for row in pattern:
+        for (note, sample) in row:
+            pattern_data_buffer.write(bytes([255 if note is None else note, sample]))
 
-mod_data = wavetable_data_buffer.getvalue()
-sample_data_start_addr = 0x4000
+pattern_data = pattern_data_buffer.getvalue()
+pattern_data_start_addr = 0x4000
+sample_data_start_addr = pattern_data_start_addr + len(pattern_data)
+mod_data = pattern_data + wavetable_data_buffer.getvalue()
+
 print("Mod data: %d bytes (max: 49152)" % len(mod_data))
 
 
@@ -90,7 +88,6 @@ samples_meta = {{
     {sample_meta_string}
 }}
 
-patterns = {pattern_data}
 positions = {positions}
 
 -- 1=sample address pointer
@@ -109,9 +106,10 @@ t=0
 
 row_duration = 0.02*6*60
 next_row_time = 0
-row_num = 0
+row_num = -1
 position_num = 1
-pattern_num = positions[1] + 1
+pattern_num = positions[1]
+pattern_data_start_addr = {pattern_data_start_addr}
 sample_data_start_addr = {sample_data_start_addr}
 
 function TIC()
@@ -121,22 +119,25 @@ function TIC()
     -- read new row
     row_num = row_num + 1
 
-    if row_num == 65 then
+    if row_num == 64 then
       -- read new pattern
-      row_num = 1
+      row_num = 0
       position_num = (position_num % #positions) + 1
-      pattern_num = positions[position_num] + 1
+      pattern_num = positions[position_num]
     end
 
-    row=patterns[pattern_num][row_num]
+    pattern_addr = pattern_data_start_addr + pattern_num * 64 * 4 * 2
+    row_addr = pattern_addr + row_num * 4 * 2
     for chan=1,4 do
-      cell=row[chan]
-      if cell[1] ~= -1 then
-        sample_meta=samples_meta[cell[2]]
+      cell_addr = row_addr + (chan - 1) * 2
+      note_num = peek(cell_addr)
+      if note_num ~= 255 then
+        sample_num = peek(cell_addr + 1)
+        sample_meta=samples_meta[sample_num]
         channel_states[chan][1] = sample_meta[1]+sample_data_start_addr
-        channel_states[chan][2] = cell[2]
+        channel_states[chan][2] = sample_num
         channel_states[chan][3] = sample_meta[2]
-        channel_states[chan][4] = cell[1] - sample_meta[5]
+        channel_states[chan][4] = note_num - sample_meta[5]
         channel_states[chan][5] = 1
       end
     end
