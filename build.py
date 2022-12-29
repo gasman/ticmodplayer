@@ -206,6 +206,7 @@ end
 
 chunks = [
     Chunk(ChunkType.CODE, 0, program_data),
+    Chunk(ChunkType.DEFAULT, 0, b''),
     Chunk(ChunkType.TILES, 0, mod_data[0:0x2000]),
 ]
 if len(mod_data) > 0x2000:
