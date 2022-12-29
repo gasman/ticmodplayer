@@ -11,17 +11,22 @@ from io import BytesIO
 
 def get_period(block, window_size):
     orig = np.asarray(block[0:window_size])
+    results = []
     best_diff = 999999
     best_offset = None
     for offset in range(10, len(block) - window_size, 1):
         shifted_wave = np.asarray(block[offset:window_size+offset])
         diffs = abs(orig - shifted_wave)
         diff = np.add.reduce(diffs)
+        results.append(diff)
         if diff < best_diff:
             best_offset = offset
             best_diff = diff
 
-    return best_offset
+    avg_diff = np.mean(results)
+    confidence = avg_diff / best_diff
+    # print("best %f, avg %f, confidence %f" % (best_diff, avg_diff, confidence))
+    return best_offset, confidence
 
 def get_single_wave(block, period):
     slice = np.asarray(block[0:period])
@@ -62,7 +67,9 @@ def iter_blocks(mono_wave, block_step, block_size):
 
 
 def make_frame(block, samplerate):
-    period = get_period(block, int(len(block) / 2))
+    period, confidence = get_period(block, int(len(block) / 2))
+    if confidence < 1.3:
+        period = int(samplerate / 220)
     freq = samplerate / period
     single_wave = get_single_wave(block, period)
     amplitude = abs(single_wave).max()
@@ -73,6 +80,9 @@ def make_frame(block, samplerate):
     final_ampl = min(int(amplitude*16), 15)
     if final_ampl == 0:
         final_wave = tuple([0]*32)
+    elif confidence < 1.3:
+        final_wave = tuple([0]*32)
+        final_ampl = int(amplitude * 11)
     else:
         final_wave = tuple(
             round(max(-0.999999, min(0.999999, fn(i))) * 7 + 8)
