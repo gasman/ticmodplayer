@@ -214,8 +214,7 @@ end
 scroll_first_char_width = get_width(string.sub(scroll_buffer, 1, 1))
 scroll_buffer_width = get_width(scroll_buffer)
 
-function TIC()
-  play_frame()
+function oscilloscope()
   cls()
   for chan=0,3 do
     addr = 0xff9c+chan*18
@@ -228,9 +227,114 @@ function TIC()
     wave_addr = (addr + 2) * 2
     for x=0,239 do
       v = ampl * (peek4(wave_addr + a) - 7)
-      pix(x, v/16 + chan*24 + 16, 4)
+      pix(x, v/16 + chan*24 + 16, chan+4)
       a = (a + step) % 32
     end
+  end
+end
+
+function firescope()
+  for y=0,95 do
+    for x=0,239 do
+      v = (pix(x,y)+pix(x-1,y+1)+pix(x,y+1)+pix(x+1,y+1))/4.1
+      pix(x, y, v)
+    end
+  end
+  for chan=0,3 do
+    addr = 0xff9c+chan*18
+    a=0
+    b1 = peek(addr)
+    b2 = peek(addr+1)
+    freq = b1 | ((b2 & 0x0f) << 8)
+    ampl = b2 >> 4
+    step = freq/480
+    wave_addr = (addr + 2) * 2
+    for x=0,119 do
+      v = ampl * (peek4(wave_addr + a) - 7)
+      pix(x + 120*(chan%2), v/16 + (chan//2)*48 + 32, 12)
+      a = (a + step) % 32
+    end
+  end
+  -- clear scroller area
+  rect(0,96,240,135,0)
+end
+
+function zoomscope()
+  for y=0,47 do
+    for x=0,119 do
+      pix(119-x,47-y,pix(119-x*1.1-1,47-y*1.1-1))
+      pix(120+x,47-y,pix(120+x*1.1+1,47-y*1.1-1))
+      pix(120+x,48+y,pix(120+x*1.1+1,48+y*1.1+1))
+      pix(119-x,48+y,pix(119-x*1.1-1,48+y*1.1+1))
+    end
+  end
+  for chan=0,3 do
+    addr = 0xff9c+chan*18
+    a=0
+    b1 = peek(addr)
+    b2 = peek(addr+1)
+    freq = b1 | ((b2 & 0x0f) << 8)
+    ampl = b2 >> 4
+    step = freq/480
+    wave_addr = (addr + 2) * 2
+    rot = time() / 2000 + math.pi * chan / 2
+    for i=0,239 do
+      x = i - 120
+      y = ampl * (peek4(wave_addr + a) - 7) / 8 + 32
+      pix(120 + x*math.cos(rot) + y*math.sin(rot), 48 + y*math.cos(rot) - x*math.sin(rot), ampl)
+      a = (a + step) % 32
+    end
+  end
+  -- clear scroller area
+  rect(0,96,240,135,0)
+end
+
+waves = {{}}
+for chan=0,3 do
+  waves[chan] = {{}}
+end
+
+function circularscope()
+  for chan=0,3 do
+    addr = 0xff9c+chan*18
+    a=0
+    b1 = peek(addr)
+    b2 = peek(addr+1)
+    freq = b1 | ((b2 & 0x0f) << 8)
+    ampl = b2 >> 4
+    step = freq/480
+    wave_addr = (addr + 2) * 2
+    for x=0,239 do
+      waves[chan][x] = ampl * (peek4(wave_addr + a) - 7) / 128
+      a = (a + step) % 32
+    end
+  end
+
+  t0=time()/1000
+  for x=0,239 do
+    for y=0,96 do
+      x0 = x - 119.5
+      y0 = y - 47.5
+      z = (math.atan2(x0,y0) / math.pi * 119 + 120) // 1
+      band = math.sqrt(x0*x0+y0*y0) / 24 - t0
+      pix(x,y,(band+waves[(band+0.5)%4//1][z]/2)%4+8)
+    end
+  end
+  -- clear scroller area
+  rect(0,96,240,135,0)
+end
+
+function TIC()
+  play_frame()
+  fx = (time() // 15360) % 4
+  if fx == 0 then
+    oscilloscope()
+  elseif fx == 1 then
+    firescope()
+  elseif fx == 2 then
+    circularscope()
+  else
+    zoomscope()
   end
 
   if -scroll_x >= scroll_first_char_width then
