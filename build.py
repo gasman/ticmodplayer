@@ -112,7 +112,7 @@ pattern_num = positions[1]
 pattern_data_start_addr = {pattern_data_start_addr}
 sample_data_start_addr = {sample_data_start_addr}
 
-function TIC()
+function play_frame()
   if next_row_time <= t then
     -- read new row
     row_num = row_num + 1
@@ -199,6 +199,56 @@ function TIC()
   end
 
   t=t+1
+end
+
+scrolltext = "Hello! I'm Gasman, and you're listening to Guitarous by The Warlock / Grace... quite possibly the first MOD file I ever listened to, from some music collection that ran on a PC speaker (erk). So it seemed quite appropriate to borrow it for the world's first MOD player for TIC-80. The TIC-80 still doesn't do real sample playback, so this is a continuation of the technique from my Mercedes Benz demo: first, chop each sample into 1/60s slices, and do some statistical analysis on it to work out where the waveform repeats. (Which seems like it should be FFT, but... isn't, really.) Then take one of those waves, and squish it down into the 32 nibbles that the TIC-80 provides for a waveform on a single frame. Do that 60 times a second, and as long as that sample is something close to a musical note, we can play it back in a more or less recognisable form. Even better, we can pitch-shift it by altering the playback frequency... and combining that with the TIC-80's four channels, you've got everything you need for a MOD player. It's a very limited one, of course (not least since I've only been hacking on it over the Christmas holidays) - there's some hacky code to deal with drum samples, trying to work out when the pitch matching breaks down and ham-fistedly dropping some noise in instead. Hardly any effects are implemented right now, and we're also constrained by the TIC-80 memory map, so there's a 48Kb limit on the crunched sample and pattern data. Is this the future of music on the TIC-80? Probably not, assuming people don't want their soundtracks to sound like vacuum cleaners full of nails. But at the end of the day all we're really doing here is massively increasing the 16 waveforms that the native TIC-80 tracker gives us... I reckon that if we used this technique on original tracks written with the TIC-80 in mind, with some combination of sampled, synthesised and simple chip instruments - rather than expecting an automatic conversion to do a good job across the board - we could get some really nice-sounding results, and maybe even bless the TIC-80 with its very own 'signature sound'. That would be pretty awesome, wouldn't it? Maybe we can make 2023 the year that we really start pushing TIC-80 demos beyond the arena of size-coding :-) Greetings to Field-FX, Slipstream, TUHB, ScenePT All-Stars, Bitshifters, RBBS, Poo-Brain, MountainBytes, Marquee Design, pestis, ilmenit, dave84, p01 and my fellow Demozoo conspirators. Happy holidays and a prosperous 2023 to you all! Gasman signing off at the end of 2022...                        "
+
+scroll_x = 0
+scroll_next_char_index = 1
+scroll_buffer = "                              "
+
+function get_width(s)
+  return print(s, 0, -100, 6, false, 2)
+end
+
+scroll_first_char_width = get_width(string.sub(scroll_buffer, 1, 1))
+scroll_buffer_width = get_width(scroll_buffer)
+
+function TIC()
+  play_frame()
+  cls()
+  for chan=0,3 do
+    addr = 0xff9c+chan*18
+    a=0
+    b1 = peek(addr)
+    b2 = peek(addr+1)
+    freq = b1 | ((b2 & 0x0f) << 8)
+    ampl = b2 >> 4
+    step = freq/480
+    wave_addr = (addr + 2) * 2
+    for x=0,239 do
+      v = ampl * (peek4(wave_addr + a) - 7)
+      pix(x, v/16 + chan*24 + 16, 4)
+      a = (a + step) % 32
+    end
+  end
+
+  if -scroll_x >= scroll_first_char_width then
+    scroll_buffer = string.sub(scroll_buffer, 2)
+    scroll_x = scroll_x + scroll_first_char_width
+    scroll_buffer_width = scroll_buffer_width - scroll_first_char_width
+    scroll_first_char_width = get_width(string.sub(scroll_buffer, 1, 1))
+  end
+
+  if scroll_buffer_width < 260 then
+    next_char = string.sub(scrolltext, scroll_next_char_index, scroll_next_char_index)
+    scroll_buffer_width = scroll_buffer_width + get_width(next_char)
+    scroll_buffer = scroll_buffer .. next_char
+    scroll_next_char_index = (scroll_next_char_index % #scrolltext) + 1
+  end
+
+  print(scroll_buffer, scroll_x, 110, 6, false, 2)
+  scroll_x = scroll_x - 2
 end
 '''.encode('ascii')
 
