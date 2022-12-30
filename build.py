@@ -74,8 +74,8 @@ positions = "{%s}" % (",".join([
     str(v) for v in mod.positions[:mod.position_count]
 ]))
 
-program_data = f'''-- title:  modplayer
--- author: Gasman / Hooy-Program
+program_data = f'''-- title:  ticmodplayer
+-- author: Gasman / Wavesitter
 -- desc:   MOD playback on TIC-80
 -- script: lua
 
@@ -369,4 +369,4 @@ if len(mod_data) > 0x4000:
     chunks.append(Chunk(ChunkType.MAP, 0, mod_data[0x4000:0xc000]))
 
 tic = TICFile(chunks)
-tic.save("modplayer.tic")
+tic.save("ticmodplayer.tic")
